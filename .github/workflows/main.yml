@@ -45,7 +45,7 @@ jobs:
       - name: Install PostgreSQL client
         run: |
           sudo apt-get update
-          sudo apt-get install -y postgresql-client-15
+          sudo apt-get install -y postgresql-client
 
       - name: Install dependencies
         run: npm ci
