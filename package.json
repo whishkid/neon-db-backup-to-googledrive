@@ -1,0 +1,40 @@
+{
+  "name": "neon-db-backup-to-googledrive",
+  "version": "1.0.0",
+  "description": "GitHub Action to backup Neon databases with recent modifications to Google Drive",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/index.ts",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write src/**/*.ts"
+  },
+  "keywords": [
+    "neon",
+    "postgresql",
+    "backup",
+    "google-drive",
+    "github-action"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@neondatabase/api-client": "^1.0.0",
+    "googleapis": "^144.0.0",
+    "pg": "^8.12.0",
+    "@actions/core": "^1.10.1",
+    "@actions/github": "^6.0.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "@typescript-eslint/eslint-plugin": "^8.2.0",
+    "@typescript-eslint/parser": "^8.2.0",
+    "eslint": "^9.9.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.3.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  }
+}

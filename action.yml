@@ -1,0 +1,50 @@
+name: 'Neon Database Backup to Google Drive'
+description: 'Automatically backup Neon databases with recent activity to Google Drive'
+author: 'neon-backup-action'
+
+branding:
+  icon: 'database'
+  color: 'blue'
+
+inputs:
+  neon_api_key:
+    description: 'Neon API Key for accessing your projects and branches'
+    required: true
+  
+  google_drive_credentials:
+    description: 'Google Drive service account credentials (JSON string)'
+    required: true
+  
+  backup_retention_days:
+    description: 'Number of days to check for data modifications (default: 7)'
+    required: false
+    default: '7'
+  
+  output_dir:
+    description: 'Local directory to store backup files temporarily (default: ./backups)'
+    required: false
+    default: './backups'
+  
+  cleanup_old_backups:
+    description: 'Whether to cleanup old backup files (default: true)'
+    required: false
+    default: 'true'
+  
+  cleanup_retention_days:
+    description: 'Number of days to retain backups (default: 30)'
+    required: false
+    default: '30'
+
+outputs:
+  backup_count:
+    description: 'Number of successful backups created'
+  
+  upload_count:
+    description: 'Number of successful uploads to Google Drive'
+  
+  total_backup_size:
+    description: 'Total size of all backup files'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
