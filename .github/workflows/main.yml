@@ -42,10 +42,46 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Install PostgreSQL client
+      - name: Setup PostgreSQL client (Windows)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
+          # Check if pg_dump is available in PATH or common locations
+          if (Get-Command pg_dump -ErrorAction SilentlyContinue) {
+            Write-Host "pg_dump found in PATH"
+            pg_dump --version
+          } elseif (Test-Path "C:\Program Files\PostgreSQL\*\bin\pg_dump.exe") {
+            $pgPath = (Get-ChildItem "C:\Program Files\PostgreSQL\*\bin\pg_dump.exe" | Select-Object -First 1).DirectoryName
+            Write-Host "Adding PostgreSQL to PATH: $pgPath"
+            echo "$pgPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            & "$pgPath\pg_dump.exe" --version
+          } else {
+            Write-Host "PostgreSQL not found. Installing PostgreSQL..."
+            
+            # Download PostgreSQL installer
+            $postgresUrl = "https://get.enterprisedb.com/postgresql/postgresql-16.4-1-windows-x64.exe"
+            $installerPath = "$env:TEMP\postgresql-installer.exe"
+            
+            Write-Host "Downloading PostgreSQL installer..."
+            Invoke-WebRequest -Uri $postgresUrl -OutFile $installerPath
+            
+            Write-Host "Installing PostgreSQL silently..."
+            # Silent install with minimal components (just client tools)
+            Start-Process -FilePath $installerPath -ArgumentList "--mode unattended --unattendedmodeui none --disable-components server --superpassword postgres" -Wait
+            
+            # Add PostgreSQL to PATH
+            $pgPath = "C:\Program Files\PostgreSQL\16\bin"
+            if (Test-Path $pgPath) {
+              Write-Host "Adding PostgreSQL to PATH: $pgPath"
+              echo "$pgPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+              & "$pgPath\pg_dump.exe" --version
+            } else {
+              Write-Error "PostgreSQL installation failed"
+              exit 1
+            }
+            
+            # Cleanup installer
+            Remove-Item $installerPath -Force
+          }
+        shell: powershell
 
       - name: Install dependencies
         run: npm ci
@@ -56,7 +92,8 @@ jobs:
       - name: Verify pg_dump installation
         run: |
           pg_dump --version
-          which pg_dump
+          where pg_dump
+        shell: powershell
 
       - name: Run backup process
         env:
@@ -82,8 +119,10 @@ jobs:
       - name: Cleanup local backups
         if: always()
         run: |
-          rm -rf ./backups/*.sql ./backups/*.dump
-          echo "Local backup files cleaned up"
+          if (Test-Path "./backups/*.sql") { Remove-Item "./backups/*.sql" -Force }
+          if (Test-Path "./backups/*.dump") { Remove-Item "./backups/*.dump" -Force }
+          Write-Host "Local backup files cleaned up"
+        shell: powershell
 
   notify:
     name: Send notification
@@ -95,15 +134,17 @@ jobs:
       - name: Send success notification
         if: needs.backup.result == 'success'
         run: |
-          echo "✅ Neon database backup completed successfully"
-          echo "Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          Write-Host "✅ Neon database backup completed successfully"
+          Write-Host "Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')"
+        shell: powershell
 
       - name: Send failure notification
         if: needs.backup.result == 'failure'
         run: |
-          echo "❌ Neon database backup failed"
-          echo "Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
-          echo "Check the workflow logs for details"
+          Write-Host "❌ Neon database backup failed"
+          Write-Host "Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')"
+          Write-Host "Check the workflow logs for details"
+        shell: powershell
 
       # Optional: Add Slack/Discord/Email notifications here
       # - name: Slack notification
