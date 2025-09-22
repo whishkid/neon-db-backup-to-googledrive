@@ -119,11 +119,18 @@ For testing locally:
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
 | `NEON_API_KEY` | Neon API key | - | ✅ |
-| `GOOGLE_DRIVE_CREDENTIALS` | Google service account JSON | - | ✅ |
+| **Google Drive Authentication (choose one)** |
+| `GOOGLE_CLIENT_ID` | OAuth client ID (recommended) | - | 🔄 |
+| `GOOGLE_CLIENT_SECRET` | OAuth client secret (recommended) | - | 🔄 |
+| `GOOGLE_REFRESH_TOKEN` | OAuth refresh token (recommended) | - | 🔄 |
+| `GOOGLE_DRIVE_CREDENTIALS` | Service account JSON (shared drives only) | - | 🔄 |
+| **Backup Configuration** |
 | `BACKUP_RETENTION_DAYS` | Days to check for modifications | 7 | ❌ |
 | `OUTPUT_DIR` | Local backup directory | ./backups | ❌ |
 | `CLEANUP_OLD_BACKUPS` | Enable cleanup of old backups | true | ❌ |
 | `CLEANUP_RETENTION_DAYS` | Days to keep backups | 30 | ❌ |
+
+> **Note**: For personal Google accounts, use OAuth authentication (CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN). For Google Workspace with shared drives, use service account credentials. See [Google OAuth Setup Guide](./GOOGLE_OAUTH_SETUP.md) for detailed instructions.
 
 ### Workflow Inputs (Manual Execution)
 

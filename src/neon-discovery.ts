@@ -107,15 +107,41 @@ export class NeonDiscoveryService {
   }
 
   /**
-   * Get connection URI for a branch
+   * Get connection URI for a branch with automatic role detection
    */
   async getBranchConnectionUri(projectId: string, branchId: string, databaseName: string = 'neondb'): Promise<string> {
     try {
+      // First, get available roles for the branch
+      const rolesResponse = await this.apiClient.listProjectBranchRoles(projectId, branchId);
+      const roles = rolesResponse.data.roles;
+      
+      if (roles.length === 0) {
+        throw new Error(`No roles found for branch ${branchId}`);
+      }
+      
+      // Use the first available role (typically the owner role)
+      const roleName = roles[0].name;
+      console.log(`🔑 Using role '${roleName}' for branch ${branchId}`);
+      
+      // Get databases for the branch to find the correct database name
+      const dbResponse = await this.apiClient.listProjectBranchDatabases(projectId, branchId);
+      const databases = dbResponse.data.databases;
+      
+      // Use the provided database name if it exists, otherwise use the first available database
+      let actualDatabaseName = databaseName;
+      if (databases.length > 0) {
+        const dbExists = databases.some(db => db.name === databaseName);
+        if (!dbExists) {
+          actualDatabaseName = databases[0].name;
+          console.log(`📊 Database '${databaseName}' not found, using '${actualDatabaseName}' instead`);
+        }
+      }
+      
       const response = await this.apiClient.getConnectionUri({
         projectId: projectId,
-        database_name: databaseName,
+        database_name: actualDatabaseName,
         branch_id: branchId,
-        role_name: 'neondb_owner'
+        role_name: roleName
       });
       
       return response.data.uri;

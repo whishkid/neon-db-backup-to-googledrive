@@ -177,11 +177,46 @@ export class DatabaseBackupService {
   }
 
   /**
+   * Get the pg_dump executable path
+   */
+  private getPgDumpPath(): string {
+    // On Windows, try common PostgreSQL installation paths
+    if (process.platform === 'win32') {
+      const commonPaths = [
+        'C:\\Program Files\\PostgreSQL\\17\\bin\\pg_dump.exe',
+        'C:\\Program Files\\PostgreSQL\\16\\bin\\pg_dump.exe',
+        'C:\\Program Files\\PostgreSQL\\15\\bin\\pg_dump.exe',
+        'C:\\Program Files\\PostgreSQL\\14\\bin\\pg_dump.exe',
+        'C:\\Program Files (x86)\\PostgreSQL\\17\\bin\\pg_dump.exe',
+        'C:\\Program Files (x86)\\PostgreSQL\\16\\bin\\pg_dump.exe',
+        'C:\\Program Files (x86)\\PostgreSQL\\15\\bin\\pg_dump.exe',
+        'C:\\Program Files (x86)\\PostgreSQL\\14\\bin\\pg_dump.exe'
+      ];
+      
+      const fs = require('fs');
+      for (const path of commonPaths) {
+        try {
+          if (fs.existsSync(path)) {
+            console.log(`🔍 Found pg_dump at: ${path}`);
+            return path;
+          }
+        } catch {
+          // Continue to next path
+        }
+      }
+    }
+    
+    // Default to 'pg_dump' (assumes it's in PATH)
+    return 'pg_dump';
+  }
+  
+  /**
    * Execute pg_dump command
    */
   private async executePgDump(args: string[], env: NodeJS.ProcessEnv): Promise<{ success: boolean; error?: string }> {
     return new Promise((resolve) => {
-      const process = spawn('pg_dump', args, {
+      const pgDumpPath = this.getPgDumpPath();
+      const process = spawn(pgDumpPath, args, {
         env,
         stdio: ['pipe', 'pipe', 'pipe']
       });
@@ -209,10 +244,17 @@ export class DatabaseBackupService {
       });
 
       process.on('error', (error) => {
-        resolve({ 
-          success: false, 
-          error: `Failed to start pg_dump: ${error.message}` 
-        });
+        if (error.message.includes('ENOENT')) {
+          resolve({ 
+            success: false, 
+            error: `pg_dump not found. Please install PostgreSQL client tools. On Windows: Download from https://www.postgresql.org/download/windows/ or use: winget install PostgreSQL.PostgreSQL` 
+          });
+        } else {
+          resolve({ 
+            success: false, 
+            error: `Failed to start pg_dump: ${error.message}` 
+          });
+        }
       });
     });
   }
@@ -311,7 +353,8 @@ export class DatabaseBackupService {
    */
   async checkPgDumpAvailability(): Promise<boolean> {
     return new Promise((resolve) => {
-      const process = spawn('pg_dump', ['--version'], { stdio: 'pipe' });
+      const pgDumpPath = this.getPgDumpPath();
+      const process = spawn(pgDumpPath, ['--version'], { stdio: 'pipe' });
       
       process.on('close', (code) => {
         resolve(code === 0);

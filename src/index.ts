@@ -3,13 +3,17 @@ import { config } from 'dotenv';
 import { NeonDiscoveryService } from './neon-discovery';
 import { DatabaseBackupService } from './backup-service';
 import { GoogleDriveService } from './google-drive-service';
+import { GoogleDriveOAuthService } from './google-drive-oauth';
 
 // Load environment variables from .env file (for local development)
 config();
 
 interface BackupConfiguration {
   neonApiKey: string;
-  googleDriveCredentials: string;
+  googleDriveCredentials?: string; // Service account credentials (optional)
+  googleClientId?: string; // OAuth client ID (optional)
+  googleClientSecret?: string; // OAuth client secret (optional)  
+  googleRefreshToken?: string; // OAuth refresh token (optional)
   retentionDays: number;
   outputDir: string;
   cleanupOldBackups: boolean;
@@ -23,7 +27,7 @@ export class NeonBackupOrchestrator {
   private config: BackupConfiguration;
   private discoveryService: NeonDiscoveryService;
   private backupService: DatabaseBackupService;
-  private driveService: GoogleDriveService;
+  private driveService: GoogleDriveService | GoogleDriveOAuthService;
 
   constructor(config: BackupConfiguration) {
     this.config = config;
@@ -36,10 +40,23 @@ export class NeonBackupOrchestrator {
     
     this.backupService = new DatabaseBackupService(config.outputDir);
     
-    this.driveService = new GoogleDriveService({
-      credentials: config.googleDriveCredentials,
-      folderName: 'neonbackups'
-    });
+    // Choose authentication method
+    if (config.googleDriveCredentials) {
+      // Use service account
+      this.driveService = new GoogleDriveService({
+        credentials: config.googleDriveCredentials,
+        folderName: 'neonbackups'
+      });
+    } else if (config.googleClientId && config.googleClientSecret && config.googleRefreshToken) {
+      // Use OAuth
+      this.driveService = new GoogleDriveOAuthService({
+        clientId: config.googleClientId,
+        clientSecret: config.googleClientSecret,
+        refreshToken: config.googleRefreshToken
+      });
+    } else {
+      throw new Error('Either Google Service Account credentials or OAuth credentials must be provided');
+    }
   }
 
   /**
@@ -109,7 +126,10 @@ export class NeonBackupOrchestrator {
       // Test pg_dump availability
       const pgDumpAvailable = await this.backupService.checkPgDumpAvailability();
       if (!pgDumpAvailable) {
-        console.log('⚠️  pg_dump not found. Will attempt to use alternative backup method.');
+        console.log('⚠️  pg_dump not found. Install PostgreSQL client tools for local testing.');
+        console.log('   Windows: Download from https://www.postgresql.org/download/windows/');
+        console.log('   Or use: winget install PostgreSQL.PostgreSQL');
+        console.log('   GitHub Actions will install this automatically.');
       }
       
       console.log('✅ All connection tests passed');
@@ -125,12 +145,24 @@ export class NeonBackupOrchestrator {
   private generateSummary(
     activeResources: any[], 
     backupResults: any[], 
-    uploadResults: any[]
+    uploadResults: any[] | { successful: number; failed: number }
   ): void {
     const successfulBackups = backupResults.filter(r => r.success).length;
     const failedBackups = backupResults.length - successfulBackups;
-    const successfulUploads = uploadResults.filter(r => r.success).length;
-    const failedUploads = uploadResults.length - successfulUploads;
+    
+    // Handle different upload result formats
+    let successfulUploads = 0;
+    let failedUploads = 0;
+    
+    if (Array.isArray(uploadResults)) {
+      // Service account format
+      successfulUploads = uploadResults.filter(r => r.success).length;
+      failedUploads = uploadResults.length - successfulUploads;
+    } else {
+      // OAuth format
+      successfulUploads = uploadResults.successful;
+      failedUploads = uploadResults.failed;
+    }
     
     const totalBackupSize = backupResults
       .filter(r => r.success && r.fileSize)
@@ -166,7 +198,10 @@ async function main(): Promise<void> {
     // Get configuration from environment variables or GitHub Actions inputs
     const config: BackupConfiguration = {
       neonApiKey: getInput('NEON_API_KEY', true),
-      googleDriveCredentials: getInput('GOOGLE_DRIVE_CREDENTIALS', true),
+      googleDriveCredentials: getInput('GOOGLE_DRIVE_CREDENTIALS', false),
+      googleClientId: getInput('GOOGLE_CLIENT_ID', false),
+      googleClientSecret: getInput('GOOGLE_CLIENT_SECRET', false),
+      googleRefreshToken: getInput('GOOGLE_REFRESH_TOKEN', false),
       retentionDays: parseInt(getInput('BACKUP_RETENTION_DAYS', false) || '7'),
       outputDir: getInput('OUTPUT_DIR', false) || './backups',
       cleanupOldBackups: getInput('CLEANUP_OLD_BACKUPS', false) === 'true',
@@ -178,8 +213,12 @@ async function main(): Promise<void> {
       throw new Error('NEON_API_KEY is required');
     }
     
-    if (!config.googleDriveCredentials) {
-      throw new Error('GOOGLE_DRIVE_CREDENTIALS is required');
+    // Check if either authentication method is provided
+    const hasServiceAccount = !!config.googleDriveCredentials;
+    const hasOAuth = !!(config.googleClientId && config.googleClientSecret && config.googleRefreshToken);
+    
+    if (!hasServiceAccount && !hasOAuth) {
+      throw new Error('Either Google Service Account credentials or OAuth credentials (CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN) must be provided');
     }
 
     // Run backup process
