@@ -91,16 +91,20 @@ export class NeonDiscoveryService {
   checkBranchActivity(branch: NeonBranch): boolean {
     try {
       const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - this.retentionDays);
-      
+      cutoffDate.setHours(cutoffDate.getHours() - 23);
+
       const branchUpdatedAt = new Date(branch.updated_at);
       const hasRecentActivity = branchUpdatedAt >= cutoffDate;
 
-      console.log(`📊 Branch ${branch.name} last updated: ${branch.updated_at} - ${hasRecentActivity ? 'Active' : 'Inactive'}`);
+      console.log(
+        `📊 Branch ${branch.name} last updated: ${branch.updated_at} - ${hasRecentActivity ? "Active" : "Inactive"}`
+      );
       return hasRecentActivity;
-
     } catch (error) {
-      console.error(`❌ Error checking activity for branch ${branch.name}:`, error);
+      console.error(
+        `❌ Error checking activity for branch ${branch.name}:`,
+        error
+      );
       // If we can't parse the date, assume there's activity to be safe
       return true;
     }
