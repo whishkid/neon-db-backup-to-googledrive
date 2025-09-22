@@ -99,11 +99,23 @@ jobs:
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           GOOGLE_DRIVE_CREDENTIALS: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
           BACKUP_RETENTION_DAYS: ${{ github.event.inputs.retention_days || '7' }}
           CLEANUP_OLD_BACKUPS: ${{ github.event.inputs.cleanup_old_backups || 'true' }}
           CLEANUP_RETENTION_DAYS: ${{ github.event.inputs.cleanup_retention_days || '30' }}
           OUTPUT_DIR: './backups'
-        run: node dist/index.js
+        run: |
+          Write-Host "Debug: Checking environment variables..."
+          Write-Host "NEON_API_KEY exists: $(if ($env:NEON_API_KEY) { 'Yes' } else { 'No' })"
+          Write-Host "GOOGLE_DRIVE_CREDENTIALS exists: $(if ($env:GOOGLE_DRIVE_CREDENTIALS) { 'Yes' } else { 'No' })"
+          Write-Host "GOOGLE_CLIENT_ID exists: $(if ($env:GOOGLE_CLIENT_ID) { 'Yes' } else { 'No' })"
+          Write-Host "GOOGLE_CLIENT_SECRET exists: $(if ($env:GOOGLE_CLIENT_SECRET) { 'Yes' } else { 'No' })"
+          Write-Host "GOOGLE_REFRESH_TOKEN exists: $(if ($env:GOOGLE_REFRESH_TOKEN) { 'Yes' } else { 'No' })"
+          Write-Host "Starting backup process..."
+          node dist/index.js
+        shell: powershell
 
       - name: Upload backup artifacts (on failure)
         if: failure()
