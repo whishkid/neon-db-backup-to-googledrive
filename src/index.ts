@@ -92,6 +92,7 @@ export class NeonBackupOrchestrator {
       
       // Step 4: Upload to Google Drive
       console.log('\n☁️  Uploading backups to Google Drive...');
+      await this.driveService.initialize();
       const uploadResults = await this.driveService.uploadMultipleBackups(backupResults);
       
       // Step 5: Cleanup old backups (optional)

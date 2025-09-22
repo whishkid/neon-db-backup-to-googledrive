@@ -3,12 +3,15 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { parse } from 'pg-connection-string';
 import { DatabaseActivity } from './neon-discovery';
+import archiver from 'archiver';
 
 export interface BackupResult {
   success: boolean;
   filePath?: string;
   fileName?: string;
   fileSize?: number;
+  sqlFilePath?: string; // Path to the original SQL file
+  zipFilePath?: string; // Path to the compressed ZIP file
   error?: string;
   duration?: number;
 }
@@ -32,7 +35,7 @@ export class DatabaseBackupService {
       compressionLevel: 6,
       includeBlobs: true,
       includePrivileges: true,
-      customFormat: true,
+      customFormat: false, // Use plain SQL format for readability
       ...options
     };
   }
@@ -48,6 +51,36 @@ export class DatabaseBackupService {
       console.error('❌ Error initializing backup directory:', error);
       throw error;
     }
+  }
+
+  /**
+   * Compress a SQL file to ZIP format
+   */
+  private async compressToZip(sqlFilePath: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const zipFilePath = sqlFilePath.replace(/\.sql$/, '.zip');
+      const output = require('fs').createWriteStream(zipFilePath);
+      const archive = archiver('zip', {
+        zlib: { level: 9 } // Maximum compression
+      });
+
+      output.on('close', () => {
+        console.log(`📦 Compressed to ZIP: ${archive.pointer()} bytes`);
+        resolve(zipFilePath);
+      });
+
+      archive.on('error', (err: Error) => {
+        reject(err);
+      });
+
+      archive.pipe(output);
+      
+      // Add the SQL file to the ZIP
+      const fileName = require('path').basename(sqlFilePath);
+      archive.file(sqlFilePath, { name: fileName });
+      
+      archive.finalize();
+    });
   }
 
   /**
@@ -111,6 +144,7 @@ export class DatabaseBackupService {
         args.push('--format=custom');
       } else {
         args.push('--format=plain');
+        args.push('--column-inserts'); // Use INSERT statements instead of COPY
       }
       
       if (mergedOptions.compressionLevel !== undefined && mergedOptions.customFormat) {
@@ -143,18 +177,29 @@ export class DatabaseBackupService {
       const result = await this.executePgDump(args, env);
 
       if (result.success) {
-        // Get file size
-        const stats = await fs.stat(filePath);
-        const fileSize = stats.size;
+        // Get original SQL file size
+        const sqlStats = await fs.stat(filePath);
+        const sqlFileSize = sqlStats.size;
+        
+        console.log(`✅ SQL backup completed: ${fileName} (${this.formatFileSize(sqlFileSize)})`);
+        
+        // Compress the SQL file to ZIP
+        console.log(`📦 Compressing SQL file to ZIP...`);
+        const zipFilePath = await this.compressToZip(filePath);
+        const zipStats = await fs.stat(zipFilePath);
+        const zipFileSize = zipStats.size;
         const duration = Date.now() - startTime;
-
-        console.log(`✅ Backup completed: ${fileName} (${this.formatFileSize(fileSize)}) in ${duration}ms`);
+        
+        console.log(`✅ Backup completed: ${require('path').basename(zipFilePath)} (${this.formatFileSize(zipFileSize)}) in ${duration}ms`);
+        console.log(`📊 Compression ratio: ${Math.round((1 - zipFileSize / sqlFileSize) * 100)}%`);
 
         return {
           success: true,
-          filePath,
-          fileName,
-          fileSize,
+          filePath: zipFilePath, // Return ZIP file path for upload
+          fileName: require('path').basename(zipFilePath),
+          fileSize: zipFileSize,
+          sqlFilePath: filePath,
+          zipFilePath: zipFilePath,
           duration
         };
       } else {
@@ -313,7 +358,7 @@ export class DatabaseBackupService {
       let deletedCount = 0;
 
       for (const file of files) {
-        if (file.endsWith('.dump') || file.endsWith('.sql')) {
+        if (file.endsWith('.dump') || file.endsWith('.sql') || file.endsWith('.zip')) {
           const filePath = join(this.outputDir, file);
           const stats = await fs.stat(filePath);
           

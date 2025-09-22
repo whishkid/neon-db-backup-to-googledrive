@@ -1,6 +1,61 @@
 # Neon Database Backup to Google Drive
 
-This GitHub Action automatically discovers all Neon database projects and branches, checks for recent data modifications, and creates backups to Google Drive.
+This GitHub Action automatically discovers all Neon database projects and branches, checks for recent data modifications, and creates backups to G## 🔄 Restoring Backups
+
+### Prerequisites
+
+#### Install PostgreSQL Client Tools
+
+**Windows:**
+```powershell
+# Option 1: Using winget (Windo## 🔧 Troubleshooting
+
+### Common Issues
+
+#### "psql: command not found" or "'psql' is not recognized"
+- **Problem**: PostgreSQL client tools are not installed or not in your system PATH
+- **Solution 1**: Install PostgreSQL client tools (see Prerequisites section above)
+- **Solution 2**: Use the full path to psql:
+  ```powershell
+  # Windows
+  "C:\Program Files\PostgreSQL\17\bin\psql.exe" -h your_host -U username -d database -f backup.sql
+  ```
+- **Solution 3**: Use pgAdmin for restoration (see Method 2 above)
+
+#### "pg_dump: command not found"ckage Manager)
+winget install PostgreSQL.PostgreSQL
+
+# Option 2: Using Chocolatey
+choco install postgresql
+
+# Option 3: Manual download
+# Download from: https://www.postgresql.org/download/windows/
+# Choose "Command Line Tools" or full PostgreSQL installation
+```
+
+**macOS:**
+```bash
+# Using Homebrew
+brew install postgresql
+
+# Using MacPorts
+sudo port install postgresql16
+```
+
+**Linux (Ubuntu/Debian):**
+```bash
+sudo apt update
+sudo apt install postgresql-client
+```
+
+**Alternative: Use the full path to psql**
+If you already have PostgreSQL installed (like you do for pg_dump), you can use the full path:
+```powershell
+# Windows - use the same path where pg_dump was found
+"C:\Program Files\PostgreSQL\17\bin\psql.exe" -h your_host -U username -d database -f backup.sql
+```
+
+### Backup File Formatsle Drive.
 
 ## 🚀 Features
 
@@ -186,7 +241,114 @@ Google Drive/
    - Optionally cleans up old backups from Google Drive
    - Maintains retention policies
 
-## 🔧 Troubleshooting
+## � Restoring Backups
+
+### Backup File Formats
+
+The system creates **SQL backups compressed in ZIP files**:
+- **ZIP files**: Compressed for efficient storage and transfer
+- **SQL files**: Human-readable plain SQL with INSERT statements (inside ZIP)
+- **pgAdmin compatible**: Can be run directly in pgAdmin or any SQL client
+
+### Download from Google Drive
+
+1. **Access your backups**:
+   - Go to [Google Drive](https://drive.google.com)
+   - Navigate to the `neonbackups` folder
+   - Download the desired backup ZIP file
+
+2. **Extract the SQL file**:
+   ```bash
+   unzip project_branch_2024-01-15_120000.zip
+   ```
+
+### Restoration Methods
+
+#### Method 1: Using psql (Command Line) - Recommended
+
+```bash
+# Extract the ZIP file first
+unzip checkngo_vercel-dev_2025-09-22_13-55-40.zip
+
+# Restore using connection string with password included
+psql "postgresql://username:password@your_host/your_database?sslmode=require" -f checkngo_vercel-dev_2025-09-22_13-55-40.sql
+```
+
+**Windows with full path** (if psql not in PATH):
+```powershell
+# Use connection string with password directly in the command
+& "C:\Program Files\PostgreSQL\17\bin\psql.exe" "postgresql://neondb_owner:your_password@ep-twilight-butterfly-ad1zgn0w.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require" -f checkngo_vercel-dev_2025-09-22_13-55-40.sql
+```
+
+For Neon databases, you can get the full connection string from your Neon dashboard:
+```bash
+psql "postgresql://username:password@ep-xyz.region.neon.tech/dbname?sslmode=require" -f backup.sql
+```
+
+#### Method 2: Using pgAdmin
+
+1. **Extract the ZIP file** to get the `.sql` file
+2. **Open pgAdmin** and connect to your target database
+3. **Right-click** on your database → **Restore...**
+4. **Select Format**: "Plain"
+5. **Choose file**: Select your extracted `.sql` file
+6. **Click "Restore"**
+
+#### Method 3: Running SQL directly in pgAdmin
+
+1. **Extract the ZIP file** to get the `.sql` file
+2. **Open pgAdmin** and connect to your target database
+3. **Open Query Tool** (Tools → Query Tool)
+4. **Open the SQL file** (File → Open)
+5. **Execute the script** (F5 or Execute button)
+
+### Restoration Examples
+
+#### Restore to a new Neon branch:
+```bash
+# Create a new branch in Neon Console first, then:
+psql "postgresql://user:pass@ep-new-branch.region.neon.tech/neondb?sslmode=require" \
+  -f depotbeheer-ubl_main_2025-09-22_13-55-44.sql
+```
+
+#### Restore to local PostgreSQL:
+```bash
+# Create a new database first
+createdb restored_database
+
+# Restore the backup
+psql -d restored_database -f backup_file.sql
+```
+
+#### Restore specific tables only:
+```bash
+# Extract specific table data from the SQL file
+grep -A 1000 "CREATE TABLE specific_table" backup.sql > specific_table.sql
+psql -d target_database -f specific_table.sql
+```
+
+### Important Notes
+
+⚠️ **Before Restoring**:
+- **Create a new database** or branch for restoration
+- **Don't restore over existing data** unless you're sure
+- **Test with a small backup first** if unsure
+
+✅ **Advantages of our SQL format**:
+- **Human readable**: You can inspect and edit the SQL before running
+- **Selective restore**: Extract only the tables/data you need
+- **Universal compatibility**: Works with any PostgreSQL-compatible database
+- **No special tools required**: Standard SQL that runs anywhere
+
+✅ **Backup validation**:
+```bash
+# Check backup file integrity
+head -n 20 backup.sql  # View the beginning
+tail -n 20 backup.sql  # View the end
+wc -l backup.sql       # Count lines
+```
+
+## �🔧 Troubleshooting
 
 ### Common Issues
 
