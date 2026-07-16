@@ -27,9 +27,8 @@ on:
 env:
   NODE_VERSION: '20'
 
-# Required by the keepalive step to re-enable this scheduled workflow via the API
+# Needed so the built-in token can push the keep-alive commit
 permissions:
-  actions: write
   contents: write
 
 jobs:
@@ -141,6 +140,28 @@ jobs:
           Write-Host "Local backup files cleaned up"
         shell: powershell
 
+      # Keep this scheduled workflow from being auto-disabled after 60 days of
+      # repo inactivity. When the last commit is older than 45 days, push an
+      # empty commit using the built-in token. Such commits reset GitHub's
+      # inactivity timer but do NOT trigger new workflow runs (no loop).
+      - name: Keep workflow alive
+        if: always()
+        continue-on-error: true
+        shell: powershell
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          $lastCommitUnix = [int](git log -1 --format=%ct)
+          $ageDays = ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() - $lastCommitUnix) / 86400
+          Write-Host ("Days since last commit: {0:N1}" -f $ageDays)
+          if ($ageDays -ge 45) {
+            Write-Host "Pushing empty keep-alive commit..."
+            git commit --allow-empty -m "chore: keep-alive to prevent scheduled workflow auto-disable"
+            git push origin HEAD:main
+          } else {
+            Write-Host "Repo recently active; no keep-alive commit needed."
+          }
+
   notify:
     name: Send notification
     needs: backup
@@ -162,15 +183,6 @@ jobs:
           Write-Host "Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')"
           Write-Host "Check the workflow logs for details"
         shell: powershell
-
-      # Prevents GitHub from disabling this scheduled workflow after 60 days
-      # of repo inactivity. Runs on every scheduled/manual run and re-enables
-      # the workflow via the API when it nears the inactivity limit.
-      - name: Keep workflow alive
-        uses: gautamkrishnar/keepalive-workflow@v2
-        with:
-          use_api: true
-          workflow_dispatch: false
 
       # Optional: Add Slack/Discord/Email notifications here
       # - name: Slack notification
