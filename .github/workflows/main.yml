@@ -27,6 +27,11 @@ on:
 env:
   NODE_VERSION: '20'
 
+# Required by the keepalive step to re-enable this scheduled workflow via the API
+permissions:
+  actions: write
+  contents: write
+
 jobs:
   backup:
     name: Backup Neon Databases
@@ -157,6 +162,15 @@ jobs:
           Write-Host "Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')"
           Write-Host "Check the workflow logs for details"
         shell: powershell
+
+      # Prevents GitHub from disabling this scheduled workflow after 60 days
+      # of repo inactivity. Runs on every scheduled/manual run and re-enables
+      # the workflow via the API when it nears the inactivity limit.
+      - name: Keep workflow alive
+        uses: gautamkrishnar/keepalive-workflow@v2
+        with:
+          use_api: true
+          workflow_dispatch: false
 
       # Optional: Add Slack/Discord/Email notifications here
       # - name: Slack notification
